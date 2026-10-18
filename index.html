@@ -1,0 +1,918 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ZenFocus - Pomodoro & Analytics</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'sans-serif'],
+          },
+          colors: {
+            brand: {
+              50: '#f0fdf4',
+              100: '#dcfce7',
+              500: '#22c55e',
+              600: '#16a34a',
+              700: '#15803d',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    /* Smooth circular progress bar animation */
+    .progress-ring__circle {
+      transition: stroke-dashoffset 0.35s ease, stroke 0.3s ease;
+      transform: rotate(-90deg);
+      transform-origin: 50% 50%;
+    }
+    /* Custom scrollbar */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: rgba(156, 163, 175, 0.4);
+      border-radius: 9999px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: rgba(156, 163, 175, 0.6);
+    }
+  </style>
+</head>
+<body class="bg-stone-50 text-stone-800 dark:bg-stone-950 dark:text-stone-100 min-h-screen flex flex-col font-sans transition-colors duration-300">
+
+  <!-- Top Navigation Bar -->
+  <header class="w-full max-w-5xl mx-auto px-4 sm:px-6 py-5 flex items-center justify-between border-b border-stone-200/70 dark:border-stone-800/80">
+    <div class="flex items-center gap-2.5">
+      <div class="w-9 h-9 rounded-xl bg-gradient-to-tr from-brand-600 to-emerald-400 flex items-center justify-center text-white shadow-sm shadow-emerald-500/20">
+        <i data-lucide="clock" class="w-5 h-5"></i>
+      </div>
+      <div>
+        <h1 class="text-lg font-bold tracking-tight">ZenFocus</h1>
+        <p class="text-xs text-stone-400 dark:text-stone-500 font-medium">Mindful Pomodoro Tracker</p>
+      </div>
+    </div>
+
+    <!-- Quick Actions -->
+    <div class="flex items-center gap-2">
+      <!-- Keyboard shortcuts info -->
+      <button id="shortcutsBtn" title="Keyboard Shortcuts" class="p-2.5 rounded-xl hover:bg-stone-200/60 dark:hover:bg-stone-800/70 text-stone-600 dark:text-stone-400 transition-all">
+        <i data-lucide="command" class="w-4 h-4"></i>
+      </button>
+
+      <!-- Settings button -->
+      <button id="openSettingsBtn" title="Timer Settings" class="p-2.5 rounded-xl hover:bg-stone-200/60 dark:hover:bg-stone-800/70 text-stone-600 dark:text-stone-400 transition-all">
+        <i data-lucide="settings" class="w-4 h-4"></i>
+      </button>
+
+      <!-- Dark/Light Mode Toggle -->
+      <button id="themeToggleBtn" title="Toggle Theme" class="p-2.5 rounded-xl hover:bg-stone-200/60 dark:hover:bg-stone-800/70 text-stone-600 dark:text-stone-400 transition-all">
+        <i data-lucide="sun" id="themeIconSun" class="w-4 h-4 hidden"></i>
+        <i data-lucide="moon" id="themeIconMoon" class="w-4 h-4"></i>
+      </button>
+    </div>
+  </header>
+
+  <!-- Main Content Layout -->
+  <main class="w-full max-w-5xl mx-auto px-4 sm:px-6 py-8 flex-1 grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+    
+    <!-- Left Column: Timer & Current Task (7 Cols) -->
+    <section class="lg:col-span-7 flex flex-col items-center">
+      
+      <!-- Mode Pill Switcher -->
+      <div class="inline-flex p-1.5 rounded-2xl bg-stone-200/70 dark:bg-stone-900 border border-stone-200 dark:border-stone-800 mb-6 shadow-inner">
+        <button data-mode="pomodoro" class="mode-btn px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all duration-200 bg-white dark:bg-stone-800 text-stone-900 dark:text-white shadow-sm">
+          Focus
+        </button>
+        <button data-mode="shortBreak" class="mode-btn px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all duration-200 text-stone-500 hover:text-stone-900 dark:hover:text-stone-200">
+          Short Break
+        </button>
+        <button data-mode="longBreak" class="mode-btn px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all duration-200 text-stone-500 hover:text-stone-900 dark:hover:text-stone-200">
+          Long Break
+        </button>
+      </div>
+
+      <!-- Circular Timer Display -->
+      <div class="relative flex items-center justify-center my-4 group">
+        <svg class="w-72 h-72 sm:w-80 sm:h-80" viewBox="0 0 280 280">
+          <!-- Background track circle -->
+          <circle
+            cx="140"
+            cy="140"
+            r="120"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="8"
+            class="text-stone-200 dark:text-stone-800/80"
+          />
+          <!-- Dynamic countdown progress circle -->
+          <circle
+            id="progressRing"
+            class="progress-ring__circle text-brand-500"
+            cx="140"
+            cy="140"
+            r="120"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="9"
+            stroke-linecap="round"
+            stroke-dasharray="753.98"
+            stroke-dashoffset="0"
+          />
+        </svg>
+
+        <!-- Center Time & Mode Information -->
+        <div class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none select-none">
+          <span id="timerDisplay" class="text-5xl sm:text-6xl font-extrabold tracking-tighter font-mono tabular-nums">25:00</span>
+          <span id="currentModeLabel" class="mt-2 text-xs uppercase tracking-widest font-semibold px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300">
+            Focus Session
+          </span>
+          <span id="activeTaskDisplay" class="mt-3 text-xs sm:text-sm font-medium text-stone-500 dark:text-stone-400 max-w-[200px] truncate text-center">
+            Ready to concentrate
+          </span>
+        </div>
+      </div>
+
+      <!-- Timer Control Actions -->
+      <div class="flex items-center gap-3 sm:gap-4 mt-6">
+        <!-- Reset -->
+        <button id="resetBtn" title="Reset (R)" class="p-3.5 rounded-2xl bg-stone-100 hover:bg-stone-200 text-stone-700 dark:bg-stone-900 dark:hover:bg-stone-800 dark:text-stone-300 border border-stone-200 dark:border-stone-800 transition active:scale-95 shadow-sm">
+          <i data-lucide="rotate-ccw" class="w-5 h-5"></i>
+        </button>
+
+        <!-- Play / Pause Main Button -->
+        <button id="togglePlayBtn" class="flex items-center gap-2.5 px-8 py-3.5 rounded-2xl bg-stone-900 hover:bg-stone-800 text-white dark:bg-stone-100 dark:hover:bg-white dark:text-stone-950 font-semibold shadow-md active:scale-95 transition-all text-base">
+          <i data-lucide="play" id="playIcon" class="w-5 h-5 fill-current"></i>
+          <span id="playText">Start</span>
+        </button>
+
+        <!-- Skip Mode -->
+        <button id="skipBtn" title="Skip Session" class="p-3.5 rounded-2xl bg-stone-100 hover:bg-stone-200 text-stone-700 dark:bg-stone-900 dark:hover:bg-stone-800 dark:text-stone-300 border border-stone-200 dark:border-stone-800 transition active:scale-95 shadow-sm">
+          <i data-lucide="skip-forward" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <!-- Task Focus Input & Quick Tags -->
+      <div class="w-full max-w-md mt-9 p-5 rounded-3xl bg-white dark:bg-stone-900 border border-stone-200/80 dark:border-stone-800 shadow-sm">
+        <label for="taskInput" class="block text-xs font-semibold text-stone-400 uppercase tracking-wider mb-2">
+          Current Focus Goal
+        </label>
+        <div class="relative flex items-center">
+          <input
+            type="text"
+            id="taskInput"
+            placeholder="e.g. Design app wireframes, Chapter 4 reading..."
+            class="w-full pl-3.5 pr-10 py-2.5 text-sm rounded-xl bg-stone-50 dark:bg-stone-950/80 border border-stone-200 dark:border-stone-800 focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 text-stone-800 dark:text-stone-100 placeholder-stone-400 dark:placeholder-stone-600 transition"
+          />
+          <button id="clearTaskBtn" class="absolute right-3 text-stone-400 hover:text-stone-600 dark:hover:text-stone-300 hidden">
+            <i data-lucide="x" class="w-4 h-4"></i>
+          </button>
+        </div>
+
+        <!-- Quick Tags -->
+        <div class="flex flex-wrap items-center gap-1.5 mt-3">
+          <span class="text-xs text-stone-400 mr-1">Tags:</span>
+          <button class="tag-pill text-xs px-2.5 py-1 rounded-lg bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-300 hover:bg-brand-50 hover:text-brand-700 dark:hover:bg-brand-950 dark:hover:text-brand-300 transition" data-tag="Deep Work">#DeepWork</button>
+          <button class="tag-pill text-xs px-2.5 py-1 rounded-lg bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-300 hover:bg-brand-50 hover:text-brand-700 dark:hover:bg-brand-950 dark:hover:text-brand-300 transition" data-tag="Coding">#Coding</button>
+          <button class="tag-pill text-xs px-2.5 py-1 rounded-lg bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-300 hover:bg-brand-50 hover:text-brand-700 dark:hover:bg-brand-950 dark:hover:text-brand-300 transition" data-tag="Study">#Study</button>
+          <button class="tag-pill text-xs px-2.5 py-1 rounded-lg bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-300 hover:bg-brand-50 hover:text-brand-700 dark:hover:bg-brand-950 dark:hover:text-brand-300 transition" data-tag="Reading">#Reading</button>
+          <button class="tag-pill text-xs px-2.5 py-1 rounded-lg bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-300 hover:bg-brand-50 hover:text-brand-700 dark:hover:bg-brand-950 dark:hover:text-brand-300 transition" data-tag="Writing">#Writing</button>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- Right Column: Analytics & Session Logs (5 Cols) -->
+    <section class="lg:col-span-5 flex flex-col gap-6">
+
+      <!-- Daily KPI Cards -->
+      <div class="grid grid-cols-3 gap-3">
+        <!-- Metric 1: Total Focus Time Today -->
+        <div class="p-4 rounded-2xl bg-white dark:bg-stone-900 border border-stone-200/80 dark:border-stone-800 shadow-sm flex flex-col">
+          <span class="text-[11px] font-semibold uppercase tracking-wider text-stone-400">Today</span>
+          <span id="statTodayTime" class="text-xl sm:text-2xl font-bold mt-1 tracking-tight">0m</span>
+          <span class="text-[10px] text-stone-400 mt-0.5">Focus time</span>
+        </div>
+
+        <!-- Metric 2: Completed Pomodoro Cycles -->
+        <div class="p-4 rounded-2xl bg-white dark:bg-stone-900 border border-stone-200/80 dark:border-stone-800 shadow-sm flex flex-col">
+          <span class="text-[11px] font-semibold uppercase tracking-wider text-stone-400">Sessions</span>
+          <span id="statSessionsToday" class="text-xl sm:text-2xl font-bold mt-1 tracking-tight text-emerald-600 dark:text-emerald-400">0</span>
+          <span class="text-[10px] text-stone-400 mt-0.5">Pomodoros</span>
+        </div>
+
+        <!-- Metric 3: Active Day Streak -->
+        <div class="p-4 rounded-2xl bg-white dark:bg-stone-900 border border-stone-200/80 dark:border-stone-800 shadow-sm flex flex-col">
+          <span class="text-[11px] font-semibold uppercase tracking-wider text-stone-400">Streak</span>
+          <div class="flex items-center gap-1 mt-1">
+            <span id="statStreakDays" class="text-xl sm:text-2xl font-bold tracking-tight text-amber-500">0</span>
+            <i data-lucide="flame" class="w-4 h-4 text-amber-500 fill-amber-500"></i>
+          </div>
+          <span class="text-[10px] text-stone-400 mt-0.5">Days in row</span>
+        </div>
+      </div>
+
+      <!-- Weekly Trend Bar Chart Card -->
+      <div class="p-5 rounded-3xl bg-white dark:bg-stone-900 border border-stone-200/80 dark:border-stone-800 shadow-sm">
+        <div class="flex items-center justify-between mb-4">
+          <div>
+            <h3 class="text-sm font-semibold tracking-tight">Focus Activity</h3>
+            <p class="text-xs text-stone-400">Past 7 days focus minutes</p>
+          </div>
+          <span id="weeklyTotalMinutes" class="text-xs font-semibold px-2 py-0.5 rounded-full bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-300">
+            0 hrs total
+          </span>
+        </div>
+
+        <!-- 7-day Bar Visualizer -->
+        <div id="weekBarsContainer" class="flex items-end justify-between gap-2 h-36 pt-4 px-1">
+          <!-- Dynamically populated via JS -->
+        </div>
+      </div>
+
+      <!-- Session History Log Card -->
+      <div class="p-5 rounded-3xl bg-white dark:bg-stone-900 border border-stone-200/80 dark:border-stone-800 shadow-sm flex flex-col">
+        <div class="flex items-center justify-between mb-3">
+          <div class="flex items-center gap-2">
+            <h3 class="text-sm font-semibold tracking-tight">Recent Sessions</h3>
+            <span id="historyCountBadge" class="text-[11px] px-2 py-0.5 rounded-full bg-stone-100 dark:bg-stone-800 font-medium text-stone-500">0</span>
+          </div>
+          <button id="clearHistoryBtn" class="text-xs font-medium text-red-500 hover:text-red-600 dark:hover:text-red-400 transition">
+            Clear all
+          </button>
+        </div>
+
+        <!-- Session List Container -->
+        <div id="sessionHistoryList" class="flex flex-col gap-2 max-h-56 overflow-y-auto pr-1">
+          <!-- Populated by JS -->
+          <div class="text-center py-8 text-stone-400 text-xs">
+            No completed sessions yet. Start your first session!
+          </div>
+        </div>
+      </div>
+
+    </section>
+  </main>
+
+  <!-- Settings Modal -->
+  <div id="settingsModal" class="fixed inset-0 z-50 bg-stone-950/40 backdrop-blur-sm flex items-center justify-center p-4 hidden">
+    <div class="bg-white dark:bg-stone-900 rounded-3xl max-w-sm w-full p-6 shadow-2xl border border-stone-200 dark:border-stone-800">
+      <div class="flex items-center justify-between mb-5">
+        <h3 class="text-base font-bold">Timer Settings</h3>
+        <button id="closeSettingsBtn" class="p-1 rounded-lg text-stone-400 hover:text-stone-600 dark:hover:text-stone-200">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <div class="space-y-4">
+        <div>
+          <label class="block text-xs font-medium text-stone-500 mb-1">Focus Duration (minutes)</label>
+          <input type="number" id="settingPomodoro" min="1" max="90" class="w-full px-3 py-2 text-sm rounded-xl border border-stone-200 dark:border-stone-800 bg-stone-50 dark:bg-stone-950 focus:outline-none focus:ring-2 focus:ring-brand-500" value="25">
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-stone-500 mb-1">Short Break (minutes)</label>
+          <input type="number" id="settingShortBreak" min="1" max="30" class="w-full px-3 py-2 text-sm rounded-xl border border-stone-200 dark:border-stone-800 bg-stone-50 dark:bg-stone-950 focus:outline-none focus:ring-2 focus:ring-brand-500" value="5">
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-stone-500 mb-1">Long Break (minutes)</label>
+          <input type="number" id="settingLongBreak" min="1" max="60" class="w-full px-3 py-2 text-sm rounded-xl border border-stone-200 dark:border-stone-800 bg-stone-50 dark:bg-stone-950 focus:outline-none focus:ring-2 focus:ring-brand-500" value="15">
+        </div>
+
+        <div class="pt-2 flex items-center justify-between">
+          <span class="text-xs text-stone-600 dark:text-stone-400 font-medium">Chime Sound Notification</span>
+          <label class="relative inline-flex items-center cursor-pointer">
+            <input type="checkbox" id="settingSoundToggle" checked class="sr-only peer">
+            <div class="w-9 h-5 bg-stone-300 peer-focus:outline-none rounded-full peer dark:bg-stone-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-stone-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-600"></div>
+          </label>
+        </div>
+      </div>
+
+      <div class="mt-6 flex justify-end gap-2">
+        <button id="saveSettingsBtn" class="w-full py-2.5 rounded-xl bg-stone-900 text-white dark:bg-white dark:text-stone-900 font-semibold text-sm hover:opacity-90 transition">
+          Apply & Save
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Keyboard Shortcuts Modal -->
+  <div id="shortcutsModal" class="fixed inset-0 z-50 bg-stone-950/40 backdrop-blur-sm flex items-center justify-center p-4 hidden">
+    <div class="bg-white dark:bg-stone-900 rounded-3xl max-w-sm w-full p-6 shadow-2xl border border-stone-200 dark:border-stone-800">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-base font-bold">Keyboard Shortcuts</h3>
+        <button id="closeShortcutsBtn" class="p-1 rounded-lg text-stone-400 hover:text-stone-600 dark:hover:text-stone-200">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <div class="space-y-3 text-xs">
+        <div class="flex items-center justify-between py-1 border-b border-stone-100 dark:border-stone-800">
+          <span class="text-stone-600 dark:text-stone-300">Start / Pause Timer</span>
+          <kbd class="px-2 py-1 rounded bg-stone-100 dark:bg-stone-800 font-mono font-bold">Space</kbd>
+        </div>
+        <div class="flex items-center justify-between py-1 border-b border-stone-100 dark:border-stone-800">
+          <span class="text-stone-600 dark:text-stone-300">Reset Session</span>
+          <kbd class="px-2 py-1 rounded bg-stone-100 dark:bg-stone-800 font-mono font-bold">R</kbd>
+        </div>
+        <div class="flex items-center justify-between py-1 border-b border-stone-100 dark:border-stone-800">
+          <span class="text-stone-600 dark:text-stone-300">Skip to Next</span>
+          <kbd class="px-2 py-1 rounded bg-stone-100 dark:bg-stone-800 font-mono font-bold">S</kbd>
+        </div>
+        <div class="flex items-center justify-between py-1">
+          <span class="text-stone-600 dark:text-stone-300">Toggle Dark Mode</span>
+          <kbd class="px-2 py-1 rounded bg-stone-100 dark:bg-stone-800 font-mono font-bold">D</kbd>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Audio Context Chime Notification -->
+  <script>
+    // Audio synthesis using Web Audio API (Clean, crisp chime, zero external URL dependencies)
+    function playChime() {
+      if (!appSettings.soundEnabled) return;
+      try {
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        if (!AudioCtx) return;
+        const ctx = new AudioCtx();
+
+        const notes = [523.25, 659.25, 783.99, 1046.50]; // C5, E5, G5, C6
+        notes.forEach((freq, idx) => {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(freq, ctx.currentTime + idx * 0.12);
+
+          gain.gain.setValueAtTime(0, ctx.currentTime + idx * 0.12);
+          gain.gain.linearRampToValueAtTime(0.2, ctx.currentTime + idx * 0.12 + 0.02);
+          gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + idx * 0.12 + 0.9);
+
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+
+          osc.start(ctx.currentTime + idx * 0.12);
+          osc.stop(ctx.currentTime + idx * 0.12 + 0.95);
+        });
+      } catch (err) {
+        console.warn('Audio playback could not start:', err);
+      }
+    }
+  </script>
+
+  <!-- Core Pomodoro & Storage Application Logic -->
+  <script>
+    // --- Application State ---
+    const STORAGE_KEY_SETTINGS = 'zenfocus_settings_v1';
+    const STORAGE_KEY_HISTORY = 'zenfocus_history_v1';
+    const STORAGE_KEY_TASK = 'zenfocus_current_task_v1';
+    const STORAGE_KEY_THEME = 'zenfocus_theme_pref';
+
+    const defaultSettings = {
+      pomodoro: 25,
+      shortBreak: 5,
+      longBreak: 15,
+      soundEnabled: true
+    };
+
+    let appSettings = Object.assign({}, defaultSettings);
+    let sessionHistory = [];
+    let currentTask = '';
+
+    // Timer status variables
+    let currentMode = 'pomodoro'; // 'pomodoro' | 'shortBreak' | 'longBreak'
+    let totalSeconds = 25 * 60;
+    let secondsLeft = 25 * 60;
+    let timerInterval = null;
+    let isRunning = false;
+    let sessionStartTime = null;
+
+    // Circumference for the circle: 2 * pi * r = 2 * 3.14159 * 120 ≈ 753.98
+    const CIRCUMFERENCE = 2 * Math.PI * 120;
+
+    // --- DOM Elements ---
+    const timerDisplay = document.getElementById('timerDisplay');
+    const currentModeLabel = document.getElementById('currentModeLabel');
+    const activeTaskDisplay = document.getElementById('activeTaskDisplay');
+    const progressRing = document.getElementById('progressRing');
+    const togglePlayBtn = document.getElementById('togglePlayBtn');
+    const playIcon = document.getElementById('playIcon');
+    const playText = document.getElementById('playText');
+    const resetBtn = document.getElementById('resetBtn');
+    const skipBtn = document.getElementById('skipBtn');
+    const taskInput = document.getElementById('taskInput');
+    const clearTaskBtn = document.getElementById('clearTaskBtn');
+    const modeButtons = document.querySelectorAll('.mode-btn');
+
+    // Stats DOM
+    const statTodayTime = document.getElementById('statTodayTime');
+    const statSessionsToday = document.getElementById('statSessionsToday');
+    const statStreakDays = document.getElementById('statStreakDays');
+    const weekBarsContainer = document.getElementById('weekBarsContainer');
+    const weeklyTotalMinutes = document.getElementById('weeklyTotalMinutes');
+    const sessionHistoryList = document.getElementById('sessionHistoryList');
+    const historyCountBadge = document.getElementById('historyCountBadge');
+    const clearHistoryBtn = document.getElementById('clearHistoryBtn');
+
+    // Modal DOM
+    const settingsModal = document.getElementById('settingsModal');
+    const openSettingsBtn = document.getElementById('openSettingsBtn');
+    const closeSettingsBtn = document.getElementById('closeSettingsBtn');
+    const saveSettingsBtn = document.getElementById('saveSettingsBtn');
+    const shortcutsModal = document.getElementById('shortcutsModal');
+    const shortcutsBtn = document.getElementById('shortcutsBtn');
+    const closeShortcutsBtn = document.getElementById('closeShortcutsBtn');
+
+    // Settings Inputs
+    const settingPomodoro = document.getElementById('settingPomodoro');
+    const settingShortBreak = document.getElementById('settingShortBreak');
+    const settingLongBreak = document.getElementById('settingLongBreak');
+    const settingSoundToggle = document.getElementById('settingSoundToggle');
+
+    // Theme DOM
+    const themeToggleBtn = document.getElementById('themeToggleBtn');
+    const themeIconSun = document.getElementById('themeIconSun');
+    const themeIconMoon = document.getElementById('themeIconMoon');
+
+    // --- LocalStorage Helpers ---
+    function loadStorageData() {
+      try {
+        const savedSettings = localStorage.getItem(STORAGE_KEY_SETTINGS);
+        if (savedSettings) appSettings = { ...defaultSettings, ...JSON.parse(savedSettings) };
+
+        const savedHistory = localStorage.getItem(STORAGE_KEY_HISTORY);
+        if (savedHistory) sessionHistory = JSON.parse(savedHistory);
+
+        const savedTask = localStorage.getItem(STORAGE_KEY_TASK);
+        if (savedTask) {
+          currentTask = savedTask;
+          taskInput.value = savedTask;
+          clearTaskBtn.classList.remove('hidden');
+        }
+      } catch (e) {
+        console.error('Error reading localStorage data', e);
+      }
+    }
+
+    function saveSettings() {
+      localStorage.setItem(STORAGE_KEY_SETTINGS, JSON.stringify(appSettings));
+    }
+
+    function saveHistory() {
+      localStorage.setItem(STORAGE_KEY_HISTORY, JSON.stringify(sessionHistory));
+    }
+
+    // --- Theme Control ---
+    function initTheme() {
+      const savedTheme = localStorage.getItem(STORAGE_KEY_THEME);
+      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      if (savedTheme === 'dark' || (!savedTheme && prefersDark)) {
+        document.documentElement.classList.add('dark');
+        themeIconSun.classList.remove('hidden');
+        themeIconMoon.classList.add('hidden');
+      } else {
+        document.documentElement.classList.remove('dark');
+        themeIconSun.classList.add('hidden');
+        themeIconMoon.classList.remove('hidden');
+      }
+    }
+
+    function toggleTheme() {
+      const isDark = document.documentElement.classList.toggle('dark');
+      localStorage.setItem(STORAGE_KEY_THEME, isDark ? 'dark' : 'light');
+      if (isDark) {
+        themeIconSun.classList.remove('hidden');
+        themeIconMoon.classList.add('hidden');
+      } else {
+        themeIconSun.classList.add('hidden');
+        themeIconMoon.classList.remove('hidden');
+      }
+    }
+
+    // --- Mode & Timer Mechanics ---
+    function getModeDurationMinutes(mode) {
+      if (mode === 'shortBreak') return appSettings.shortBreak;
+      if (mode === 'longBreak') return appSettings.longBreak;
+      return appSettings.pomodoro;
+    }
+
+    function setMode(mode) {
+      currentMode = mode;
+      pauseTimer();
+      totalSeconds = getModeDurationMinutes(mode) * 60;
+      secondsLeft = totalSeconds;
+
+      // Update Pill Button Styles
+      modeButtons.forEach(btn => {
+        if (btn.dataset.mode === mode) {
+          btn.className = 'mode-btn px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all duration-200 bg-white dark:bg-stone-800 text-stone-900 dark:text-white shadow-sm';
+        } else {
+          btn.className = 'mode-btn px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all duration-200 text-stone-500 hover:text-stone-900 dark:hover:text-stone-200';
+        }
+      });
+
+      // Update Labels & Ring Color
+      if (mode === 'pomodoro') {
+        currentModeLabel.textContent = 'Focus Session';
+        currentModeLabel.className = 'mt-2 text-xs uppercase tracking-widest font-semibold px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300';
+        progressRing.classList.remove('text-sky-500', 'text-indigo-500');
+        progressRing.classList.add('text-brand-500');
+      } else if (mode === 'shortBreak') {
+        currentModeLabel.textContent = 'Short Break';
+        currentModeLabel.className = 'mt-2 text-xs uppercase tracking-widest font-semibold px-3 py-1 rounded-full bg-sky-50 text-sky-700 dark:bg-sky-950/60 dark:text-sky-300';
+        progressRing.classList.remove('text-brand-500', 'text-indigo-500');
+        progressRing.classList.add('text-sky-500');
+      } else {
+        currentModeLabel.textContent = 'Long Break';
+        currentModeLabel.className = 'mt-2 text-xs uppercase tracking-widest font-semibold px-3 py-1 rounded-full bg-indigo-50 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300';
+        progressRing.classList.remove('text-brand-500', 'text-sky-500');
+        progressRing.classList.add('text-indigo-500');
+      }
+
+      updateTimerUI();
+    }
+
+    function updateTimerUI() {
+      const mins = Math.floor(secondsLeft / 60);
+      const secs = secondsLeft % 60;
+      const formatted = `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+      timerDisplay.textContent = formatted;
+      document.title = `${formatted} • ${currentMode === 'pomodoro' ? 'Focus' : 'Break'} - ZenFocus`;
+
+      // Update circular SVG progress
+      const progressFraction = (totalSeconds - secondsLeft) / totalSeconds;
+      const offset = CIRCUMFERENCE * (1 - progressFraction);
+      progressRing.style.strokeDashoffset = offset;
+
+      // Update task preview display
+      if (currentTask.trim()) {
+        activeTaskDisplay.textContent = currentTask;
+      } else {
+        activeTaskDisplay.textContent = currentMode === 'pomodoro' ? 'Ready to concentrate' : 'Time to recharge';
+      }
+    }
+
+    function startTimer() {
+      if (isRunning) return;
+      isRunning = true;
+      sessionStartTime = new Date();
+      playIcon.setAttribute('data-lucide', 'pause');
+      playText.textContent = 'Pause';
+      lucide.createIcons();
+
+      timerInterval = setInterval(() => {
+        if (secondsLeft > 0) {
+          secondsLeft--;
+          updateTimerUI();
+        } else {
+          handleSessionCompletion();
+        }
+      }, 1000);
+    }
+
+    function pauseTimer() {
+      if (!isRunning) return;
+      isRunning = false;
+      clearInterval(timerInterval);
+      timerInterval = null;
+      playIcon.setAttribute('data-lucide', 'play');
+      playText.textContent = 'Start';
+      lucide.createIcons();
+    }
+
+    function toggleTimer() {
+      if (isRunning) {
+        pauseTimer();
+      } else {
+        startTimer();
+      }
+    }
+
+    function resetTimer() {
+      pauseTimer();
+      secondsLeft = totalSeconds;
+      updateTimerUI();
+    }
+
+    function skipTimer() {
+      pauseTimer();
+      if (currentMode === 'pomodoro') {
+        setMode('shortBreak');
+      } else {
+        setMode('pomodoro');
+      }
+    }
+
+    // --- On Timer Finish ---
+    function handleSessionCompletion() {
+      pauseTimer();
+      playChime();
+
+      if (currentMode === 'pomodoro') {
+        // Record completed session
+        const durationMinutes = Math.round(totalSeconds / 60);
+        const record = {
+          id: 'sess_' + Date.now(),
+          timestamp: new Date().toISOString(),
+          task: currentTask.trim() || 'General Focus',
+          durationMinutes: durationMinutes,
+          type: 'pomodoro'
+        };
+
+        sessionHistory.unshift(record);
+        saveHistory();
+        renderAnalytics();
+
+        // Switch automatically to short break or long break
+        setMode('shortBreak');
+      } else {
+        // Break finished, return to focus
+        setMode('pomodoro');
+      }
+    }
+
+    // --- Analytics & Statistics Calculations ---
+    function renderAnalytics() {
+      const now = new Date();
+      const todayISO = now.toISOString().split('T')[0];
+
+      // 1. Today's focus time and session count
+      const todaySessions = sessionHistory.filter(item => {
+        return item.timestamp.startsWith(todayISO);
+      });
+
+      const todayMinutes = todaySessions.reduce((acc, curr) => acc + (curr.durationMinutes || 0), 0);
+      const hours = Math.floor(todayMinutes / 60);
+      const mins = todayMinutes % 60;
+      statTodayTime.textContent = hours > 0 ? `${hours}h ${mins}m` : `${mins}m`;
+      statSessionsToday.textContent = todaySessions.length;
+
+      // 2. Streak calculation (consecutive active days)
+      const uniqueDays = [...new Set(sessionHistory.map(s => s.timestamp.split('T')[0]))].sort().reverse();
+      let streak = 0;
+      let checkDate = new Date();
+
+      for (let i = 0; i < 365; i++) {
+        const dateStr = checkDate.toISOString().split('T')[0];
+        if (uniqueDays.includes(dateStr)) {
+          streak++;
+          checkDate.setDate(checkDate.getDate() - 1);
+        } else if (i === 0) {
+          // If no sessions yet today, check if yesterday was active
+          checkDate.setDate(checkDate.getDate() - 1);
+        } else {
+          break;
+        }
+      }
+      statStreakDays.textContent = streak;
+
+      // 3. Last 7 Days Activity Bar Chart
+      weekBarsContainer.innerHTML = '';
+      const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+      let weeklyTotal = 0;
+      const last7DaysData = [];
+
+      for (let i = 6; i >= 0; i--) {
+        const d = new Date();
+        d.setDate(d.getDate() - i);
+        const dayStr = d.toISOString().split('T')[0];
+        const dayLabel = dayNames[d.getDay()];
+
+        const dayMins = sessionHistory
+          .filter(item => item.timestamp.startsWith(dayStr))
+          .reduce((sum, item) => sum + (item.durationMinutes || 0), 0);
+
+        weeklyTotal += dayMins;
+        last7DaysData.push({ dayLabel, dayMins, isToday: i === 0 });
+      }
+
+      weeklyTotalMinutes.textContent = `${(weeklyTotal / 60).toFixed(1)} hrs total`;
+
+      const maxMinutes = Math.max(...last7DaysData.map(d => d.dayMins), 60); // min scale is 60 mins
+
+      last7DaysData.forEach(item => {
+        const barHeightPercent = Math.min(100, Math.max(8, Math.round((item.dayMins / maxMinutes) * 100)));
+        
+        const colDiv = document.createElement('div');
+        colDiv.className = 'flex-1 flex flex-col items-center h-full justify-end group relative';
+
+        colDiv.innerHTML = `
+          <!-- Tooltip on hover -->
+          <div class="absolute -top-7 opacity-0 group-hover:opacity-100 transition-opacity bg-stone-900 text-white text-[10px] py-0.5 px-1.5 rounded pointer-events-none whitespace-nowrap z-10">
+            ${item.dayMins} mins
+          </div>
+          <div class="w-full max-w-[28px] rounded-lg transition-all duration-300 ${
+            item.isToday 
+              ? 'bg-brand-500 shadow-sm shadow-emerald-500/20' 
+              : item.dayMins > 0 
+                ? 'bg-stone-300 dark:bg-stone-700' 
+                : 'bg-stone-100 dark:bg-stone-800/60'
+          }" style="height: ${barHeightPercent}%;"></div>
+          <span class="text-[10px] font-medium text-stone-400 mt-2">${item.dayLabel}</span>
+        `;
+        weekBarsContainer.appendChild(colDiv);
+      });
+
+      // 4. Session History List
+      historyCountBadge.textContent = sessionHistory.length;
+      sessionHistoryList.innerHTML = '';
+
+      if (sessionHistory.length === 0) {
+        sessionHistoryList.innerHTML = `
+          <div class="text-center py-8 text-stone-400 text-xs">
+            No completed sessions yet. Start your first session!
+          </div>
+        `;
+      } else {
+        sessionHistory.slice(0, 15).forEach(session => {
+          const itemDate = new Date(session.timestamp);
+          const timeStr = itemDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+          const dateStr = itemDate.toLocaleDateString([], { month: 'short', day: 'numeric' });
+
+          const row = document.createElement('div');
+          row.className = 'flex items-center justify-between p-2.5 rounded-xl bg-stone-50 dark:bg-stone-950/60 border border-stone-200/60 dark:border-stone-800/60 text-xs hover:border-stone-300 dark:hover:border-stone-700 transition group';
+          row.innerHTML = `
+            <div class="flex items-center gap-2.5 overflow-hidden pr-2">
+              <span class="w-2 h-2 rounded-full bg-emerald-500 shrink-0"></span>
+              <div class="truncate">
+                <p class="font-medium truncate text-stone-800 dark:text-stone-200">${escapeHtml(session.task)}</p>
+                <p class="text-[10px] text-stone-400">${dateStr} • ${timeStr}</p>
+              </div>
+            </div>
+            <div class="flex items-center gap-2 shrink-0">
+              <span class="font-mono font-semibold text-emerald-600 dark:text-emerald-400">+${session.durationMinutes}m</span>
+              <button data-delete-id="${session.id}" title="Remove item" class="delete-session-btn text-stone-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition p-0.5">
+                <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+              </button>
+            </div>
+          `;
+          sessionHistoryList.appendChild(row);
+        });
+
+        // Attach delete events
+        document.querySelectorAll('.delete-session-btn').forEach(btn => {
+          btn.addEventListener('click', (e) => {
+            const targetId = btn.getAttribute('data-delete-id');
+            sessionHistory = sessionHistory.filter(item => item.id !== targetId);
+            saveHistory();
+            renderAnalytics();
+          });
+        });
+      }
+
+      lucide.createIcons();
+    }
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    // --- Task Input Events ---
+    taskInput.addEventListener('input', (e) => {
+      currentTask = e.target.value;
+      localStorage.setItem(STORAGE_KEY_TASK, currentTask);
+      if (currentTask.trim()) {
+        clearTaskBtn.classList.remove('hidden');
+      } else {
+        clearTaskBtn.classList.add('hidden');
+      }
+      updateTimerUI();
+    });
+
+    clearTaskBtn.addEventListener('click', () => {
+      taskInput.value = '';
+      currentTask = '';
+      localStorage.removeItem(STORAGE_KEY_TASK);
+      clearTaskBtn.classList.add('hidden');
+      updateTimerUI();
+    });
+
+    // Tag pills click
+    document.querySelectorAll('.tag-pill').forEach(pill => {
+      pill.addEventListener('click', () => {
+        const tag = pill.getAttribute('data-tag');
+        taskInput.value = tag;
+        currentTask = tag;
+        localStorage.setItem(STORAGE_KEY_TASK, currentTask);
+        clearTaskBtn.classList.remove('hidden');
+        updateTimerUI();
+      });
+    });
+
+    // Clear all history
+    clearHistoryBtn.addEventListener('click', () => {
+      if (sessionHistory.length === 0) return;
+      sessionHistory = [];
+      saveHistory();
+      renderAnalytics();
+    });
+
+    // --- Mode Buttons ---
+    modeButtons.forEach(btn => {
+      btn.addEventListener('click', () => {
+        setMode(btn.dataset.mode);
+      });
+    });
+
+    // --- Controls ---
+    togglePlayBtn.addEventListener('click', toggleTimer);
+    resetBtn.addEventListener('click', resetTimer);
+    skipBtn.addEventListener('click', skipTimer);
+
+    // --- Settings Modal ---
+    function openSettings() {
+      settingPomodoro.value = appSettings.pomodoro;
+      settingShortBreak.value = appSettings.shortBreak;
+      settingLongBreak.value = appSettings.longBreak;
+      settingSoundToggle.checked = appSettings.soundEnabled;
+      settingsModal.classList.remove('hidden');
+    }
+
+    function closeSettings() {
+      settingsModal.classList.add('hidden');
+    }
+
+    openSettingsBtn.addEventListener('click', openSettings);
+    closeSettingsBtn.addEventListener('click', closeSettings);
+
+    saveSettingsBtn.addEventListener('click', () => {
+      const p = Math.max(1, parseInt(settingPomodoro.value, 10) || 25);
+      const sb = Math.max(1, parseInt(settingShortBreak.value, 10) || 5);
+      const lb = Math.max(1, parseInt(settingLongBreak.value, 10) || 15);
+
+      appSettings.pomodoro = p;
+      appSettings.shortBreak = sb;
+      appSettings.longBreak = lb;
+      appSettings.soundEnabled = settingSoundToggle.checked;
+
+      saveSettings();
+      closeSettings();
+
+      // Recalibrate current timer without losing mode
+      setMode(currentMode);
+    });
+
+    // Shortcuts modal
+    shortcutsBtn.addEventListener('click', () => shortcutsModal.classList.remove('hidden'));
+    closeShortcutsBtn.addEventListener('click', () => shortcutsModal.classList.add('hidden'));
+
+    // Theme Toggle
+    themeToggleBtn.addEventListener('click', toggleTheme);
+
+    // Global Keyboard Shortcuts
+    window.addEventListener('keydown', (e) => {
+      // Do not trigger shortcuts if user is typing in an input
+      if (['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName)) {
+        return;
+      }
+
+      if (e.code === 'Space') {
+        e.preventDefault();
+        toggleTimer();
+      } else if (e.key === 'r' || e.key === 'R') {
+        e.preventDefault();
+        resetTimer();
+      } else if (e.key === 's' || e.key === 'S') {
+        e.preventDefault();
+        skipTimer();
+      } else if (e.key === 'd' || e.key === 'D') {
+        e.preventDefault();
+        toggleTheme();
+      } else if (e.key === 'Escape') {
+        settingsModal.classList.add('hidden');
+        shortcutsModal.classList.add('hidden');
+      }
+    });
+
+    // Close modals on clicking backdrop
+    [settingsModal, shortcutsModal].forEach(modal => {
+      modal.addEventListener('click', (e) => {
+        if (e.target === modal) modal.classList.add('hidden');
+      });
+    });
+
+    // --- App Initialization ---
+    window.onload = function() {
+      initTheme();
+      loadStorageData();
+      setMode('pomodoro');
+      renderAnalytics();
+      lucide.createIcons();
+    };
+  </script>
+</body>
+</html>
